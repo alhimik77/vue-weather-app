@@ -151,6 +151,7 @@ export default {
     requestToApi(coord) {
       // bring the coordinate to the object and forward
       this.coord = {
+
         // some elements
         id: 1,
         lat: coord.lat,
@@ -159,6 +160,27 @@ export default {
         iconSize: [25, 41],
         content: ''
       }
+      //get data over json network
+      fetch(this.constructWeatherLink())
+          .then(response => response.json())
+          .then((json) => {
+            //equate our json to the response
+            this.response = json
+            // create a variable in which we write the content
+            let content = ''
+            // if not equal to undefined then passes the test
+            if (json.current_weather != undefined) {
+             // and writes the received data to a variable
+              content += `
+                <h2><b>Current Status</b></h2>
+               <b>Time:</b> ${json.current_weather.time.replace('T', '')} ${this.settings.timezone}
+               <br><b>Temperature:</b> ${json.current_weather.temperature} ${this.settings.temperature}
+               <br><b>Wind Direction:</b> ${json.current_weather.winddirection}
+               <br><b>Wind Speed:</b> ${json.current_weather.windspeed} ${this.settings.wind}`
+            }
+            // we assign content in order to overwrite the contents of the popup
+            this.coord.content = content
+          })
     },
     // function map click, an object (item) is passed to the click, it has a latitude and longitude in itself
     mapClick(item) {
@@ -176,9 +198,41 @@ export default {
     // with the current latitude and longitude  this.coord
     getCoord() {
       return latLng(this.coord.lat, this.coord.long)
+    },
+    // create an API call function
+    constructWeatherLink() {
+      // create variables
+      let url = 'https://api.open-meteo.com/v1/forecast?'
+      // we take the link and equate the current coordinates to it
+      url = url + `latitude=${this.coord.lat}&longitude=${this.coord.long}`
+      // specify links default settings
+      if (this.settings.temperature != undefined) {
+        url += `&temperature_unit=${this.settings.temperature}`
+      }
+      if (this.settings.wind != undefined) {
+        url += `&windspeed_unit=${this.settings.wind}`
+      }
+      if (this.settings.precipitation != undefined) {
+        url += `&precipitation_unit=${this.settings.precipitation}`
+      }
+      if (this.settings.timeformat != undefined) {
+        url += `&timeformat=${this.settings.timeformat}`
+      }
+      if (this.settings.timezone != undefined) {
+        url += `&timezone=${this.settings.timezone}`
+      }
+      if (this.settings.past != undefined) {
+        url += `&past_days=${this.settings.past}`
+      }
+      if (this.settings.current != undefined) {
+        url += `&current_weather=${this.settings.current}`
+      }
+      // equate the WeatherLink variable to the url of this "constructWeatherLink()" function and get the input in JSON
+      this.weatherLink = url
+      // and return this value
+      return this.weatherLink
     }
   },
-
 }
 </script>
 
