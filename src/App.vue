@@ -2,7 +2,7 @@
   <div id="app">
     <!--======  map component  ==========-->
     <l-map
-        :zoom="7"
+        :zoom="18"
         :center="center"
         style="height: 100vh"
         @click="mapClick"
@@ -24,6 +24,40 @@
         <l-popup :content="coord.content"></l-popup>
       </l-marker>
     </l-map>
+    <div>
+      <h3>Select coordinates or City</h3>
+      <div>
+        <div>
+          <!--  latitude is input using the v-model directive for two-way data binding of the input field -->
+          <!--  v-on:change event calls the mapClick() function which contains the getCord()  -->
+          <!-- function which accepts the coordinate drag object  -->
+          <input type="number" step="0.0001" name="latitude" id="latitude" v-model="coord.lat"
+                 @change="mapClick({latlng: getCoord()})">
+          <label for="latitude">Latitude</label>
+        </div>
+      </div>
+      <div>
+        <div>
+          <!--  latitude is input using the v-model directive for two-way data binding of the input field -->
+          <!--  v-on:change event calls the mapClick() function which contains the getCord()  -->
+          <!-- function which accepts the coordinate drag object  -->
+          <input type="number" step="0.0001" name="longitude" id="longitude" v-model="coord.long"
+                 @change="mapClick({latlng: getCoord()})">
+          <label for="longitude">Longitude</label>
+        </div>
+      </div>
+      <div>
+        <div>
+          <!--   a button that triggers a click event using the v-on directive
+           that calls the getLocalGPS() function that returns the location of the device-->
+          <button type="button" @click="getLocationGPS">Detect GPS Position</button>
+        </div>
+      </div>
+    </div>
+    <!--    the input field in which the API link is located,
+            using the directive to the two-way binding model,
+             we pass the value of the variable (weatherLink) input parameters-->
+    <input class="weatherLink" type="text" rel="link" readonly="readonly" v-model="weatherLink">
   </div>
 </template>
 
@@ -114,16 +148,25 @@ export default {
       ],
       // response API object
       response: undefined,
-      // object coordinate
-      coord: undefined,
+      // coordinate default object
+      coord: {
+        id: 1,
+        lat: 56.8796,
+        long: 24.6032,
+        icon: require('leaflet/dist/images/marker-icon-2x.png'),
+        iconSize: [25, 41],
+        content: ''
+      },
       // Initial coordinates. Align the map to the center after clicking ====== variables
       center: latLng(56.8796, 24.6032),
       // network settings object
       settings: {
         // hour settings with empty array variables
-        hourly: [],
+        hourly: ['temperature_2m'],
         // day settings with empty array variables
-        daily: [],
+        daily: ['precipitation_sum',
+          'precipitation_hours',
+          'weathercode',],
         // to show the current weather on the map variables
         current: true,
         // temperature display in Celsius variables
@@ -150,8 +193,8 @@ export default {
     // coordinate comes with (item.latlng)
     requestToApi(coord) {
       // bring the coordinate to the object and forward
+      // console.log(coord)
       this.coord = {
-
         // some elements
         id: 1,
         lat: coord.lat,
@@ -166,11 +209,12 @@ export default {
           .then((json) => {
             //equate our json to the response
             this.response = json
+            // console.log(json)
             // create a variable in which we write the content
             let content = ''
             // if not equal to undefined then passes the test
             if (json.current_weather != undefined) {
-             // and writes the received data to a variable
+              // and writes the received data to a variable
               content += `
                 <h2><b>Current Status</b></h2>
                <b>Time:</b> ${json.current_weather.time.replace('T', '')} ${this.settings.timezone}
@@ -178,6 +222,37 @@ export default {
                <br><b>Wind Direction:</b> ${json.current_weather.winddirection}
                <br><b>Wind Speed:</b> ${json.current_weather.windspeed} ${this.settings.wind}`
             }
+            // check if our hourly are not empty
+            if (json.hourly != undefined) {
+              // create inscription 'Hourly'
+              content += '<h2><b>Hourly</b></h2>'
+              // we start the loop and run through the selected array of our values
+              for (let i = 0; i < this.settings.hourly.length; i++) {
+                // and we are looking for our alimony [i] in 'json.hourly' and if found, return the value
+                if (json.hourly[this.settings.hourly[i]] != undefined) {
+                  // write the name of this element [i] into the content, remove all underscores from the element [i]
+                  content += `<b>${this.settings.hourly[i].replaceAll('_', '')}:</b>
+                    <!--  we take the getMiddleValue function, pass the hour value [i], pass current time "current_weather" and an array time json.hourly[time] there                      -->
+                  ${this.getMiddleValue(json.hourly[this.settings.hourly[i]], json.current_weather.time, json.hourly['time'])}<br>`
+                }
+              }
+            }
+            // check if our daily are not empty
+            if (json.daily != undefined) {
+              // create inscription 'Hourly'
+              content += '<h2><b>Daily</b></h2>'
+              // we start the loop and run through the selected array of our values
+              for (let i = 0; i < this.settings.daily.length; i++) {
+                // and we are looking for our alimony [i] in 'json.daily' and if found, return the value
+                if (json.daily[this.settings.daily[i]] != undefined) {
+                  // write the name of this element [i] into the content, remove all underscores from the element [i]
+                  content += `<b>${this.settings.daily[i].replaceAll('_', '')}:</b>
+                  <!--  we take the getMiddleValue function, pass the hour value [i], pass current time "current_weather" and an array time json.hourly[time] there                      -->
+                  ${this.getMiddleValue(json.daily[this.settings.daily[i]], json.current_weather.time.substr(0, 10), json.daily['time'])}<br>`
+                }
+              }
+            }
+
             // we assign content in order to overwrite the contents of the popup
             this.coord.content = content
           })
@@ -186,7 +261,6 @@ export default {
     mapClick(item) {
       // a request comes from api object (item)
       this.requestToApi(item.latlng)
-
       // set the coordinate point to the center with the current coordinates getCoord()
       this.center = this.getCoord()
       // after the click I make a delay, I turn to the popup and call it
@@ -199,14 +273,53 @@ export default {
     getCoord() {
       return latLng(this.coord.lat, this.coord.long)
     },
-    // create an API call function
+
+    // building an API call link
     constructWeatherLink() {
       // create variables
       let url = 'https://api.open-meteo.com/v1/forecast?'
       // we take the link and equate the current coordinates to it
       url = url + `latitude=${this.coord.lat}&longitude=${this.coord.long}`
+      // check if there is at least one element in the array
+      if (this.settings.hourly != 0) {
+        // write the initial text
+        let hourly = '&hourly='
+        // then add the elements, run a loop over the entire array
+        for (let i = 0; i < this.settings.hourly.length; i++)
+            // if last element array
+          if (this.settings.hourly.length - 1 == i) {
+            // take i and write it to the link setting
+            hourly += this.settings.hourly [i]
+          }
+          //otherwise take the element and add a comma
+          else {
+            hourly += this.settings.hourly [i] + ','
+          }
+        // write the hourly setting to the link
+        url += hourly
+      }
+      // check if there is at least one element in the array
+      if (this.settings.daily != 0) {
+        //  write initial text
+        let daily = '&daily='
+        // then add the elements, run a loop over the entire array
+        for (let i = 0; i < this.settings.daily.length; i++)
+            // if last element array
+          if (this.settings.daily.length - 1 == i) {
+            // take i and write it to the link settings
+            daily += this.settings.daily [i]
+          }
+          // otherwise take the element and add a coma
+          else {
+            daily += this.settings.daily [i] + ','
+          }
+        // write the hourly setting to the link
+        url += daily
+      }
+
       // specify links default settings
-      if (this.settings.temperature != undefined) {
+      if (this.settings.temperature != undefined
+      ) {
         url += `&temperature_unit=${this.settings.temperature}`
       }
       if (this.settings.wind != undefined) {
@@ -227,11 +340,51 @@ export default {
       if (this.settings.current != undefined) {
         url += `&current_weather=${this.settings.current}`
       }
-      // equate the WeatherLink variable to the url of this "constructWeatherLink()" function and get the input in JSON
+// equate the WeatherLink variable to the url of this "constructWeatherLink()" function and get the input in JSON
       this.weatherLink = url
-      // and return this value
+// and return this value
       return this.weatherLink
+    },
+
+    // the function calculates averages, accepts an array of data, current time, and an array of time
+    getMiddleValue(array, time, timeArray) {
+      let nums = []
+      // start iterating through the array with array ( time-array )
+      for (let i = 0; i < array.length; i++) {
+        // we run through the time array at the same time (timeArray, array ), since they are bound with the same number of values.
+        // Checking the current time
+        if (timeArray [i] === time) {
+          // as soon as the current time is found, in the array of numbers ( let nums = [] ) we push the value
+          nums.push(array[i])
+        }
+      }
+      // if array is equal to string
+      if (typeof (nums[0]) == 'string') {
+        // then we return a specific letter from this string
+        return nums[0].substr(11, 5)
+      }
+      // if it fails the if test, otherwise return the average value of the array, add each element in the array and divide by its length
+      return nums.reduce((a, b) => (a + b)) / nums.length
+    },
+
+    // function current coordinates
+    getLocationGPS() {
+      // the object calls the Geolocation.getCurrentPosition() method to get the device's current location.
+      // A callback function that takes a Position object as its only input parameter.
+      // we turn to the navigator class, pull out the geolocation from it,
+      // and pass the getCurrentPosition function to it with an object with one position input parameter
+      navigator.geolocation.getCurrentPosition((position) => {
+        // write to a variable (position.coords.latitude, position.coords.longitude)
+        setLatLong(position.coords.latitude, position.coords.longitude)
+      })
+      // created a separate function.
+      // I create a variable and assign a value to it (lat. long)
+      let setLatLong = (lat, long) => {
+        //  calls function mapClick gets item object (latlng) with function imported from leaflet object (latLng ) with variables (lat, long )
+        this.mapClick({latlng: latLng(lat, long)})
+      }
     }
+
   },
 }
 </script>
